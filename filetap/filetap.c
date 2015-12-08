@@ -239,7 +239,7 @@ int parse_input(int argc, char * argv[]) {
 
 void print_help() {
 	printf("\n______________________________________________________________\n");
-	printf("\nSynopsis: \n\t livetap -option [-option-val]\ne.g\t livetap -n 20 -f mypcap.pcap -i \n\n");
+	printf("\nSynopsis: \n\t filetap -option [-option-val]\ne.g\t filetap -n 20 -f mypcap.pcap -i \n\n");
 	printf("options:\n");
 	printf("-n [count]\tCount. Number of packets to process. DEFAULT %d=ALL \n\n", DEFAULT_N_PACKETS);
 	printf("-f [file]\tFilename. Filename to parse.\n\n");
