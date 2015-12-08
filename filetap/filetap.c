@@ -139,6 +139,8 @@ int setup_pcap_session() {
 		return 1;
 	}		
 	
+	// Haven't tried filter on file capture yet. Below is copy-pasted from livetap.
+
 	/* Compile and set the filter */
 	// Compile the filter for this pcap session/handle
 	/*if (pcap_compile(hdl_pcap, &mybpf, filter_expr, optim, dev_netmask) != 0) {
@@ -179,7 +181,9 @@ void close_session() {
 
 int parse_input(int argc, char * argv[]) {
 	
+	// Used for checking file input options, which is mandatory
 	bool file_chk = false;
+
 	int iar;
 	for (iar=1; iar<argc; iar+=2) {
 				
