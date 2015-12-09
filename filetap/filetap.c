@@ -21,7 +21,6 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 	
-	
 	//_______________________
 	/* Start sniffing packets */
 	//_______________________
@@ -77,6 +76,10 @@ void process_simple_packet(u_char *args, const struct pcap_pkthdr *header, const
 	
 	printf("Header.\n Timestamp: %ld\n Length: %d\n CapLen: %d\n", hdr_time, header->len, caplen);
 	
+	if (has_radiotap_hdr) {
+		printf(" Includes: %d bytes Radio Tap Header", buffer[2]);
+		data_offs = buffer[2];
+	}
 	
 	// Print out Captured Buffer (in HEX and STRING)
 	// Looping to caplen since caplen<=snaplen. I.e if caplen is less than snaplen, no need to print nulls.
@@ -84,9 +87,26 @@ void process_simple_packet(u_char *args, const struct pcap_pkthdr *header, const
 	int ichar;
 	
 	if (HEXDUMP==1) {
-		printf("\n\n________________\nHex dump:\n");
+		printf("\n\t\t____________________\n\t\t\tHex dump\n\t\t____________________\n");
 		
-		for (ibyte = 0; ibyte<caplen; ibyte++) {
+		if (has_radiotap_hdr) {
+			printf("Radio Tap Header:\n");
+			for (ibyte = 0; ibyte<data_offs; ibyte++) {
+					printf("0x%02x ", buffer[ibyte]);
+					if ((ibyte+1)%16==0) {
+						printf("\n");
+						
+						for (ichar = ibyte-15; ichar<=ibyte; ichar++) {					
+							printf("%4c ", (char) buffer[ichar]);
+						}
+						
+						printf("\n");
+					}
+			}
+			printf("802.11 Data:\n");
+		}
+		
+		for (ibyte = data_offs; ibyte<caplen; ibyte++) {
 				printf("0x%02x ", buffer[ibyte]);
 				if ((ibyte+1)%16==0) {
 					printf("\n");
@@ -101,7 +121,7 @@ void process_simple_packet(u_char *args, const struct pcap_pkthdr *header, const
 	}
 	
 	if (STRINGDUMP==1) {
-		printf("\n\n________________\nString dump:\n");		
+		printf("\n\n\t\t____________________\n\t\t\tString dump\n\t\t____________________\n");		
 		for (ichar = 0; ichar<caplen; ichar++) {
 			
 			if ((ichar+1)%32==0) {
@@ -139,20 +159,26 @@ int setup_pcap_session() {
 		return 1;
 	}		
 	
-	// Haven't tried filter on file capture yet. Below is copy-pasted from livetap.
-
 	/* Compile and set the filter */
-	// Compile the filter for this pcap session/handle
-	/*if (pcap_compile(hdl_pcap, &mybpf, filter_expr, optim, dev_netmask) != 0) {
+	// Compile the filter for this pcap session/handle	
+	if (pcap_compile(hdl_pcap, &mybpf, filter_expr, optim, dev_netmask) != 0) {
 		printf("Couldn't compile filter. %s\n", errbuf);
+		pcap_perror(hdl_pcap, "Err \n");
 		return 1;
 	}
 	
 	// Check if filter can be set
 	if ( pcap_setfilter(hdl_pcap, &mybpf) != 0) {
 		printf("Couldn't set filter. %s\n", errbuf);
+		pcap_perror(hdl_pcap, "Err \n");
 		return 1;
-	}*/
+	}
+	
+		// Check link layer type
+	if (pcap_datalink(hdl_pcap)==127) {
+		printf("\nFound LINKTYPE_IEEE802_11_RADIOTAP\n");
+		has_radiotap_hdr = true;
+	}
 	
 	// Open file handles to empty, writable (w) and updatable (+) files.
 	if (PRNTTOFILE==1) {
@@ -198,7 +224,7 @@ int parse_input(int argc, char * argv[]) {
 					
 				case 'f':
 					file_chk = true;
-					// Type of processing
+					// File to processing
 					printf("-f File: ");
 					file_in_loc = argv[iar+1];
 					printf("%s\n", file_in_loc);
@@ -206,7 +232,7 @@ int parse_input(int argc, char * argv[]) {
 					break;
 					
 				case 'i':
-					// Short
+					// Print File header
 					file_hdr_print = true;
 					iar--;					
 					printf("-i Include file header\n");
