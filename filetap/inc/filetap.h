@@ -59,7 +59,8 @@ struct bpf_program mybpf;			/* Filter program */ // Should be "struct bpf_progra
 char errbuf[PCAP_ERRBUF_SIZE];		/* Error string */
 
 
-
+bool has_radiotap_hdr = false;
+unsigned int data_offs = 0;
 
 bool file_hdr_print = false;
 
