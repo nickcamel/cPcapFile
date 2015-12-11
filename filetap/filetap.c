@@ -50,14 +50,24 @@ int parse_file_header() {
 		return 1;
 	}
 	fread(buffer, size_buf, 1, file_in);	
-	
+		
 	printf("______________\nFile Header. magic number etc...\n");
-	int ibyte;	
-	for (ibyte=0; ibyte<size_buf; ibyte++) {		
+	
+	if (DO_DEV==1) {
+		dev_parse_file_hdr(buffer);	
+	}
+	
+	
+	int ibyte;
+	for (ibyte=0; ibyte<size_buf; ibyte+=4) {
 		if ((ibyte)%4 == 0) {
 			printf("\n");
 		}
-		printf("0x%02x ", buffer[ibyte]&0xFF);
+			
+		printf("0x%08x ", ((buffer[ibyte]&0xFF)<<24) + 
+			((buffer[ibyte+1]&0xFF)<<16) + 
+			((buffer[ibyte+2]&0xFF)<<8) +
+			((buffer[ibyte+3]&0xFF)));
 	}
 	printf("\n______________\n");
 	fclose(file_in);
@@ -75,6 +85,12 @@ void process_simple_packet(u_char *args, const struct pcap_pkthdr *header, const
 	unsigned int caplen = header->caplen;
 	
 	printf("Header.\n Timestamp: %ld\n Length: %d\n CapLen: %d\n", hdr_time, header->len, caplen);
+	
+	
+	if (DO_DEV==1 && has_radiotap_hdr!=has_radiotap_hdr_file){
+		printf("\n\nLink Layer found mismatch!!! \n\n");
+		printf("has_hdr %d\nhas_hdr_file%d\n", has_radiotap_hdr, has_radiotap_hdr_file);
+	}
 	
 	if (has_radiotap_hdr) {
 		printf(" Includes: %d bytes Radio Tap Header", buffer[2]);
@@ -175,7 +191,7 @@ int setup_pcap_session() {
 	}
 	
 		// Check link layer type
-	if (pcap_datalink(hdl_pcap)==127) {
+	if (pcap_datalink(hdl_pcap)==LINKTYPE_IEEE802_11_RADIOTAP) {
 		printf("\nFound LINKTYPE_IEEE802_11_RADIOTAP\n");
 		has_radiotap_hdr = true;
 	}
@@ -282,4 +298,26 @@ void print_help() {
 void print_err_help(char * argin) {
 	printf("\n\nOption '%s' not valid\n\n", argin);
 	print_help();
+}
+
+void dev_parse_file_hdr(char * buffer) {
+	
+	// Byte order endianess
+	if ( ((int) (buffer[0]&0xFF) == 0xd4) && ((int)(buffer[3]&0xFF) == 0xa1)) {
+		
+		// At least now we know that byte order is reverse in file header.
+		// TODO: Maybe add support for checking middle nibbles aswell (for us and ns check)
+		
+		// Set where to look for radiotap_link_layer type byte
+		radiotap_byte_idx = 20;		
+		
+	} else {
+		
+		radiotap_byte_idx = 23;
+	}
+	
+	if ( (buffer[radiotap_byte_idx]&0xFF) == 0x7f) {
+		has_radiotap_hdr_file = true;
+	}
+	
 }

@@ -15,7 +15,7 @@ void close_session();
 int parse_input(int, char * argv[]);
 void print_help();
 void print_err_help(char * argv);
-
+void dev_parse_file_hdr(char * buf);
 /* 	Declare packet-processing function.
 	Body of function is defined by developer, however, pcap-lib defines the inputs.
 */
@@ -60,6 +60,9 @@ char errbuf[PCAP_ERRBUF_SIZE];		/* Error string */
 
 
 bool has_radiotap_hdr = false;
+bool has_radiotap_hdr_file = false;
+int radiotap_byte_idx;
+
 unsigned int data_offs = 0;
 
 bool file_hdr_print = false;
