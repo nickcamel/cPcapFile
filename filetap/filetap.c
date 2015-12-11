@@ -5,14 +5,18 @@
 //#include <unistd.h>
 int main(int argc, char *argv[]) {
 	
+	/*
+	foreach(key, asci_d) {
+		printf("KEY: %d\n", *key);
+	};
+	*/
 	
-	// Parse input arguments
-	int status = parse_input(argc, argv);
-	if (status==1) {
+	// Parse input arguments	
+	if (parse_input(argc, argv)!=0) {
 		return 1;		
 	}	
 	
-	if (file_hdr_print && parse_file_header()!=0) {		
+	if (file_hdr_print && (parse_file_header()!=0) ) {
 		return 1;
 	}
 	
@@ -26,9 +30,8 @@ int main(int argc, char *argv[]) {
 	//_______________________
 	printf("\nWaiting for packets...\n\n");
 	
-	// PCAP loop with 1 packet at a time.
-	
-	pcap_loop(hdl_pcap, n_pkts_rcv, process_simple_packet, (u_char *) "pcap C version");
+	// Loop through n_pkts_rcv packets
+	pcap_loop(hdl_pcap, n_pkts_rcv, process_simple_packet, (u_char *) "Filetap!");
 	
 	printf("No more packets\n");
 
@@ -42,34 +45,46 @@ int main(int argc, char *argv[]) {
 
 
 int parse_file_header() {
-	int size_buf = FILE_HDR_SIZE;	
-	char buffer[size_buf];	
-	file_in = fopen(file_in_loc, "r");	
+	
+	// Get the header size, in bytes
+	int size_buf = FILE_HDR_SIZE;
+	
+	// Allocate buffer array
+	char buffer[size_buf];
+	
+	// Open input file
+	file_in = fopen(file_in_loc, "r");
+	
 	if (file_in==NULL) {
 		printf("Error opening file: %s\n", file_in_loc);
 		return 1;
 	}
+	
+	// Read in bytes in to buffer
 	fread(buffer, size_buf, 1, file_in);	
 		
 	printf("______________\nFile Header. magic number etc...\n");
 	
+	// Do some dev stuff
 	if (DO_DEV==1) {
 		dev_parse_file_hdr(buffer);	
 	}
 	
-	
+	// Print the header bytes
 	int ibyte;
 	for (ibyte=0; ibyte<size_buf; ibyte+=4) {
 		if ((ibyte)%4 == 0) {
 			printf("\n");
 		}
-			
+		// Print per 4 bytes
 		printf("0x%08x ", ((buffer[ibyte]&0xFF)<<24) + 
 			((buffer[ibyte+1]&0xFF)<<16) + 
 			((buffer[ibyte+2]&0xFF)<<8) +
 			((buffer[ibyte+3]&0xFF)));
 	}
 	printf("\n______________\n");
+	
+	// Close file
 	fclose(file_in);
 	
 	return 0;
@@ -85,12 +100,6 @@ void process_simple_packet(u_char *args, const struct pcap_pkthdr *header, const
 	unsigned int caplen = header->caplen;
 	
 	printf("Header.\n Timestamp: %ld\n Length: %d\n CapLen: %d\n", hdr_time, header->len, caplen);
-	
-	
-	if (DO_DEV==1 && has_radiotap_hdr!=has_radiotap_hdr_file){
-		printf("\n\nLink Layer found mismatch!!! \n\n");
-		printf("has_hdr %d\nhas_hdr_file%d\n", has_radiotap_hdr, has_radiotap_hdr_file);
-	}
 	
 	if (has_radiotap_hdr) {
 		printf(" Includes: %d bytes Radio Tap Header", buffer[2]);
@@ -119,7 +128,7 @@ void process_simple_packet(u_char *args, const struct pcap_pkthdr *header, const
 						printf("\n");
 					}
 			}
-			printf("802.11 Data:\n");
+			printf("\n802.11 Data:\n");
 		}
 		
 		for (ibyte = data_offs; ibyte<caplen; ibyte++) {
@@ -137,20 +146,26 @@ void process_simple_packet(u_char *args, const struct pcap_pkthdr *header, const
 	}
 	
 	if (STRINGDUMP==1) {
-		printf("\n\n\t\t____________________\n\t\t\tString dump\n\t\t____________________\n");		
+		printf("\n\n\t\t____________________\n\t\t\tString dump\n\t\t____________________\n");
 		for (ichar = 0; ichar<caplen; ichar++) {
 			
+			// Make a linebreak every 32 bytes
 			if ((ichar+1)%32==0) {
 				printf("\n");
 			}
 			
+			// This section picks out the ascii chars we want to print, else it prints a . (dot).
+			
+			// Print this byte if char is NOT in our ascii range
 			u_char false_char = (u_char) 46;
+			
+			// Print this byte if char is in our ascii range
 			u_char true_char = (u_char) buffer[ichar];
 			
-			u_char t_char = 	(buffer[ichar]>=48 && buffer[ichar]<=57) || 
-								(buffer[ichar]>=65 && buffer[ichar]<=90) || 
-								(buffer[ichar]>=97 && buffer[ichar]<=122) ? true_char/*buffer[ichar]*/ : false_char;
-			printf("%c", (char) t_char);
+			u_char t_char = (buffer[ichar]>=asci_d[0] && buffer[ichar]<=asci_d[1]) || 
+							(buffer[ichar]>=asci_d[2] && buffer[ichar]<=asci_d[3]) || 
+							(buffer[ichar]>=asci_d[4] && buffer[ichar]<=asci_d[5]) ? true_char/*buffer[ichar]*/ : false_char;
+			printf("%c", t_char);
 			
 		}
 
@@ -167,7 +182,7 @@ int setup_pcap_session() {
 	//____________________________________
 	
 	
-	/* Open pcap session */
+	/* Open pcap session using inputted file */
 	hdl_pcap = pcap_open_offline(file_in_loc, errbuf);
 	
 	if (hdl_pcap==NULL) {
@@ -190,10 +205,20 @@ int setup_pcap_session() {
 		return 1;
 	}
 	
-		// Check link layer type
+	// Check link layer type
 	if (pcap_datalink(hdl_pcap)==LINKTYPE_IEEE802_11_RADIOTAP) {
 		printf("\nFound LINKTYPE_IEEE802_11_RADIOTAP\n");
 		has_radiotap_hdr = true;
+	}	
+	
+	if ( (DO_DEV==1) && file_hdr_print && (has_radiotap_hdr!=has_radiotap_hdr_file) ) {
+		// This link layer mismatch error is a dev operation, where we manually read
+		// the link layer type value from the file header which sets the variable
+		// 'has_radiotap_hdr_file'. Built in pcap_datalink() does the same thing, though
+		// setting 'has_radiotap_hdr'.
+		// So, just wanting to verify our job in extracting the data link type manually.
+		printf("\n\nLink Layer found mismatch!!! \n\n");
+		printf("has_hdr %d\nhas_hdr_file %d\n", has_radiotap_hdr, has_radiotap_hdr_file);
 	}
 	
 	// Open file handles to empty, writable (w) and updatable (+) files.
@@ -229,12 +254,12 @@ int parse_input(int argc, char * argv[]) {
 	int iar;
 	for (iar=1; iar<argc; iar+=2) {
 				
-		if (*argv[iar]=='-') {			
+		if (*argv[iar]=='-') { // catch the option tag '-'
 			
-			switch (*(argv[iar]+1)) {
+			switch (*(argv[iar]+1)) { // the immediate (+1) address after should contain a valid option
 				case 'n':
 					// Number of packets to receive
-					n_pkts_rcv = atoi((argv[iar+1]));
+					n_pkts_rcv = atoi((argv[iar+1])); // the immediate (+1) pointer after should contain a value
 					printf("-n Packet count: %d\n", n_pkts_rcv);
 					break;
 					
@@ -276,6 +301,7 @@ int parse_input(int argc, char * argv[]) {
 	}
 	
 	if (!file_chk) {
+		// File input is mandatory
 		printf("Error! No inputted file\n");
 		return 1;
 	}
